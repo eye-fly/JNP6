@@ -70,10 +70,16 @@ class Player{
             if(rounds_to_whait == 0){
 
                 assert(game.dices.size() == 2);
-                for(int i=0; 2>i; i++) sum_of_moves += game.dices[i].get()->roll();
-            
-                crr_field = game.board.get_field(sum_of_moves);
-                crr_field->stepOn(*this);
+                unsigned int moves=0;
+                for(int i=0; 2>i; i++) moves += game.dices[i].get()->roll();
+
+                for( ;moves >0;moves--){
+                    sum_of_moves++;
+                    crr_field = game.board.get_field(sum_of_moves);
+                    
+                    if(moves == 1) crr_field->stepOn(*this);
+                    else crr_field->stepOver(*this);
+                }
 
             } else rounds_to_whait --;
 
@@ -98,19 +104,107 @@ class Player{
 class Field{
     public: 
         virtual void stepOn(Player &player) = 0;
-
-        virtual const std::string getName() = 0;
+        virtual void stepOver(Player &player) = 0;
+        
+        const std::string getName(){ return name; }
+    protected:
+        std::string name;
 };
 
 class SeazonStart : public Field{
     public:
-        void stepOn(Player &player){
-            player.money += 50;
+        SeazonStart() {
+            name = "Początek sezonu";
         }
 
-        const std::string getName() { return name; }
+        void stepOn(Player &player) override{
+            player.money += 50;
+        }
+        void stepOver(Player &player) override { stepOn(player); }
+
+};
+
+class Reward : public Field{
+    public:
+        Reward(std::string f_name, unsigned int price) : price_amount(price){
+            name = f_name;
+        }
+
+        void stepOn(Player &player) override{
+            player.money += price_amount;
+        }
+        void stepOver(Player &player) override {}
+
     private:
-         std::string name = "Początek sezonu";
+        unsigned int price_amount;
+};
+
+class PenaltyKick : public Field{
+    public:
+        PenaltyKick(unsigned int penalty) : penalty(penalty){
+            name = "rzut karny";
+        }
+
+        void stepOn(Player &player) override{
+            player.money -= penalty;
+        }
+        void stepOver(Player &player) override {}
+    private:
+        unsigned int penalty;
+};
+
+class Bukmacher : public Field{
+    public:
+        Bukmacher(unsigned int wager) : wager(wager){
+            name = "bukmacher";
+        }
+
+        void stepOn(Player &player) override{
+            if(player_count == 2) player.money += wager;
+            else player.money += wager;
+
+            player_count+= 1;
+            player_count%=3;
+        }
+        void stepOver(Player &player) override {}
+    private:
+        unsigned int wager;
+        unsigned int player_count=0;
+};
+
+class YellowCard : public Field{
+    public:
+        YellowCard(unsigned int rounds) : rounds(rounds){
+            
+            name = "żółta kartka";
+        }
+
+        void stepOn(Player &player) override{
+            player.rounds_to_whait = rounds;
+        }
+        void stepOver(Player &player) override {}
+    private:
+        unsigned int rounds;
+};
+
+class Mach : public Field{
+    public:
+        Mach(std::string oponentsName, unsigned int cost, float fifaCoefficient) : cost(cost), fifaCoefficient(fifaCoefficient){
+            name = "mecz z "+oponentsName;
+        }
+
+        void stepOn(Player &player) override{
+            player.money += fifaCoefficient*feesCharged;
+            feesCharged =0;
+        }
+        void stepOver(Player &player) override {
+            feesCharged += cost;
+            player.money -= cost;
+        }
+    private:
+        unsigned int cost;
+        float fifaCoefficient;
+        unsigned int feesCharged =0;
 };
 
 class Board{
@@ -121,6 +215,14 @@ class Board{
         }
 
     private:
-        std::vector<Field> fields = {};
+        std::vector<Field> fields = {
+            SeazonStart(),
+
+            Bukmacher(300),
+            Mach("Argentyną", 250, 2.5),
+            Reward("gol", 120),
+            Mach("Francją", 400, 4),
+            PenaltyKick(180)
+            };
 };
 #endif
